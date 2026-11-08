@@ -1,0 +1,170 @@
+:root {
+  --kidearn-text: #6e6b70;
+  --kidearn-text-rgb: 110, 107, 112;
+  --kidearn-white: #141215;
+  --kidearn-white-rgb: 20, 18, 21;
+  --kidearn-base: #c2a74e;
+  --kidearn-base-rgb: 194, 167, 78;
+  --kidearn-black: #fff;
+  --kidearn-black-rgb: 255, 255, 255;
+  --kidearn-black3: #000;
+  --kidearn-black3-rgb: 0, 0, 0;
+  --kidearn-black4: #121013;
+  --kidearn-black4-rgb: 18, 16, 19;
+  --kidearn-gray: #1c1a1d;
+  --kidearn-gray-rgb: 28, 26, 29;
+  --kidearn-border-color: #2f2d30;
+  --kidearn-border-color-rgb: 47, 45, 48;
+}
+
+.main-slider-one__bg::after {
+  background-image: url(../images/shapes/hero-slider-1-1-dark.png);
+}
+
+.contact-map,
+.opening,
+.blog-one,
+.instagram-one,
+.why-choose-one,
+.testimonials-one,
+.about-one {
+  background-color: var(--kidearn-white);
+}
+
+.footer-widget__social a:hover,
+.footer-widget__social a,
+.footer-widget__info li a:hover,
+.footer-widget__links li a:hover,
+.footer-widget__title,
+.cta-two__sub-title,
+.cta-two__title,
+.opening__info,
+.opening__title,
+.opening__icon,
+.blog-card__date,
+.contact__input-box i,
+.contact__input-box .bootstrap-select > .dropdown-toggle::before,
+.contact .sec-title__title,
+.funfact-one__count,
+.funfact-one__text,
+.funfact-one__icon,
+.instagram-one a::before,
+.why-choose-one__list__icon,
+.programs-one__item:hover .programs-one__item__title,
+.video-two__btn .video-popup,
+.video-two__btn .curved-circle--item span,
+.video-two__title,
+.client-carousel-one .owl-theme .owl-nav button:hover,
+.about-one__image__info__icon,
+.feature-one__item__icon,
+.main-slider-one__title,
+.main-slider-one__sub-title {
+  color: var(--kidearn-black);
+}
+
+.main-slider-one__bg::before {
+  background-color: var(--kidearn-gray);
+  opacity: 0.5;
+}
+
+.about-one__image__info,
+.background-black,
+.cta-two__content .kidearn-btn::before,
+.blog-card__content,
+.about-one__content__list li {
+  background-color: var(--kidearn-gray);
+}
+
+.main-slider-one__carousel.owl-carousel .owl-nav button {
+  background-color: rgba(var(--kidearn-black-rgb), 0.1);
+  color: var(--kidearn-black);
+}
+
+.main-slider-one circle {
+  stroke: var(--kidearn-white);
+}
+
+.main-slider-one__carousel .owl-dots .owl-dot span {
+  border-color: var(--kidearn-black);
+}
+
+.cta-two__content .kidearn-btn,
+.cta-two__content .kidearn-btn::after,
+.blog-card__image__link::before,
+.blog-card__image__link::after,
+.funfact-one__item:not(:first-of-type)::before,
+.main-slider-one__carousel .owl-dots .owl-dot:hover span,
+.main-slider-one__carousel .owl-dots .owl-dot.active span {
+  background-color: var(--kidearn-black);
+}
+
+.about-one__flower {
+  background-color: var(--kidearn-black4);
+}
+
+.about-one__image__info::after {
+  border-image: linear-gradient(-45deg, rgba(var(--kidearn-base-rgb), 1) 0%, rgba(var(--kidearn-black3-rgb), 1) 100%) 1;
+}
+
+.client-carousel-one .client-carousel__one__item:hover {
+  background-color: var(--kidearn-gray);
+}
+
+.video-two {
+  background-color: var(--kidearn-black3);
+}
+
+.instagram-one a::after {
+  background-color: rgba(var(--kidearn-black3-rgb), 0.5);
+}
+
+.contact__input-box textarea,
+.contact__input-box input[type=date],
+.contact__input-box input[type=text],
+.contact__input-box input[type=email] {
+  color: var(--kidearn-black);
+  border-color: rgba(var(--kidearn-black-rgb, 255, 255, 255), 0.15);
+}
+
+.contact__input-box .bootstrap-select > .dropdown-toggle {
+  color: var(--kidearn-black) !important;
+}
+
+.contact__input-box .bootstrap-select > .dropdown-toggle {
+  border-color: rgba(var(--kidearn-black-rgb, 255, 255, 255), 0.15);
+}
+
+.contact__input-box .bootstrap-select .dropdown-menu > li:hover > a,
+.contact__input-box .bootstrap-select .dropdown-menu > li.selected > a {
+  color: var(--kidearn-black);
+}
+
+.blog-card__image__link {
+  background-color: rgba(var(--kidearn-gray-rgb), 0.5);
+}
+
+.opening__info--last {
+  border-color: rgba(var(--kidearn-black-rgb), 0.2);
+}
+
+.main-footer__bottom__inner {
+  border-color: rgba(var(--kidearn-black-rgb), 0.2);
+}
+
+.google-map iframe {
+  filter: grayscale(100%) invert(92%) contrast(83%);
+}
+
+.cta-two__thumb__two__thumb,
+.cta-two__thumb__one__thumb {
+  border-color: var(--kidearn-black);
+}
+
+.cta-two__content .kidearn-btn:hover {
+  color: var(--kidearn-white);
+}
+
+.footer-widget__newsletter input[type=text]:focus {
+  color: var(--kidearn-text);
+}
+/*# sourceMappingURL=kidearn-dark.css.map */
