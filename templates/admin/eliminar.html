@@ -1,0 +1,15 @@
+{% extends "admin/base_admin.html" %}
+{% block titulo %}Eliminar colaborador · Panel administrativo{% endblock %}
+{% block encabezado %}Eliminar colaborador{% endblock %}
+{% block contenido %}
+<div class="contenedor contenedor--estrecho contenedor--centro">
+  <h3>¿Eliminar a {{ p.nombre_completo }}?</h3>
+  <p>Se borrará su solicitud ({{ p.correo }}) y sus áreas de colaboración.
+     <strong>Esta acción no se puede deshacer.</strong></p>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn-enviar btn-enviar--peligro">Sí, eliminar definitivamente</button>
+  </form>
+  <p class="centrado"><a href="{{ url_for('admin.detalle', colaborador_id=p.id) }}">No, volver</a></p>
+</div>
+{% endblock %}

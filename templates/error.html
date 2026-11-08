@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} · Fundación Beit Shalom{% endblock %}
+{% block encabezado %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="contenedor contenedor--centro">
+  <h3>{{ titulo }}</h3>
+  <p>{{ mensaje }}</p>
+  <a href="{{ sitio_url }}" class="btn-enviar btn-enlace">Volver al inicio</a>
+</div>
+{% endblock %}

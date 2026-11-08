@@ -1,0 +1,117 @@
+{# Formulario de colaborador, compartido por el registro público y el panel admin.
+   Variables: accion (URL), modo ('publico' | 'admin'), texto_boton #}
+{% macro error(campo) -%}
+  <p class="error" id="error-{{ campo }}" role="alert">{{ errores.get(campo, '') }}</p>
+{%- endmacro %}
+
+{% if errores.get('general') %}
+  <div class="alerta alerta--error" role="alert">{{ errores.general }}</div>
+{% elif errores %}
+  <div class="alerta alerta--error" role="alert">
+    Revisa los campos marcados en rojo para poder guardar.
+  </div>
+{% endif %}
+
+<form id="formRegistro" method="POST" action="{{ accion }}" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if modo == 'publico' %}
+  <!-- Campo trampa contra bots: debe quedar vacío -->
+  <div class="trampa" aria-hidden="true">
+    <label for="sitio_web">No llenar este campo</label>
+    <input type="text" id="sitio_web" name="sitio_web" tabindex="-1" autocomplete="off">
+  </div>
+  {% endif %}
+
+  <section class="seccion">
+    <h2><span>01</span> Información personal</h2>
+
+    <label for="nombre">Nombre completo</label>
+    <input type="text" id="nombre" name="nombre" required minlength="5" maxlength="150"
+           autocomplete="name" placeholder="Nombre completo" value="{{ datos.get('nombre', '') }}">
+    {{ error('nombre') }}
+
+    <label for="pais">País de residencia</label>
+    <select id="pais" name="pais" required>
+      <option value="">Seleccionar país</option>
+      {% for p in paises %}
+        <option value="{{ p }}" {% if datos.get('pais') == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    {{ error('pais') }}
+
+    <label for="correo">Correo electrónico</label>
+    <input type="email" id="correo" name="correo" required maxlength="150"
+           autocomplete="email" placeholder="correo@ejemplo.com" value="{{ datos.get('correo', '') }}">
+    {{ error('correo') }}
+
+    <label for="telefono">Teléfono / WhatsApp <small>(opcional)</small></label>
+    <input type="tel" id="telefono" name="telefono" maxlength="30" autocomplete="tel"
+           placeholder="+503 7000 0000" value="{{ datos.get('telefono', '') }}">
+    {{ error('telefono') }}
+  </section>
+
+  <section class="seccion">
+    <h2><span>02</span> ¿Cómo desea colaborar?</h2>
+    <p class="ayuda">Se pueden seleccionar varias áreas.</p>
+    <div class="opciones" id="grupoAreas">
+      {% for a in areas %}
+        <label class="opcion">
+          <input type="checkbox" name="areas" value="{{ a.id }}"
+                 {% if a.id in datos.get('areas', []) %}checked{% endif %}>
+          <span>{{ a.nombre }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    {{ error('areas') }}
+  </section>
+
+  <section class="seccion">
+    <h2><span>03</span> Disponibilidad</h2>
+
+    <label for="modalidad">Modalidad de colaboración</label>
+    <select id="modalidad" name="modalidad" required>
+      <option value="">Seleccionar modalidad</option>
+      {% for m in modalidades %}
+        <option value="{{ m }}" {% if datos.get('modalidad') == m %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+    {{ error('modalidad') }}
+
+    <label for="disponibilidad">Disponibilidad</label>
+    <select id="disponibilidad" name="disponibilidad" required>
+      <option value="">Seleccionar disponibilidad</option>
+      {% for d in disponibilidades %}
+        <option value="{{ d }}" {% if datos.get('disponibilidad') == d %}selected{% endif %}>{{ d }}</option>
+      {% endfor %}
+    </select>
+    {{ error('disponibilidad') }}
+
+    <label for="motivacion">Motivación <small>(opcional)</small></label>
+    <textarea id="motivacion" name="motivacion" maxlength="1000" rows="5"
+              placeholder="Cuéntanos un poco sobre tu motivación...">{{ datos.get('motivacion', '') }}</textarea>
+    <p class="contador"><span id="contadorMotivacion">0</span> / 1000</p>
+    {{ error('motivacion') }}
+  </section>
+
+  <section class="seccion">
+    <h2><span>04</span> Confirmación</h2>
+    <label class="opcion privacidad">
+      <input type="checkbox" id="privacidad" name="privacidad" value="1" required
+             {% if datos.get('privacidad') %}checked{% endif %}>
+      {% if modo == 'publico' %}
+      <span>Acepto el tratamiento de mis datos personales conforme a la política de privacidad.
+            Entiendo que registrarme como colaborador no me autoriza automáticamente a trabajar
+            directamente con niños.</span>
+      {% else %}
+      <span>Confirmo que la persona aceptó el tratamiento de sus datos personales conforme a
+            la política de privacidad.</span>
+      {% endif %}
+    </label>
+    {{ error('privacidad') }}
+  </section>
+
+  <button type="submit" class="btn-enviar" id="btnEnviar">{{ texto_boton }}</button>
+  {% if modo == 'admin' %}
+    <p class="centrado"><a href="{{ url_for('admin.listado') }}">Cancelar</a></p>
+  {% endif %}
+</form>

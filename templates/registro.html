@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titulo %}Quiero colaborar · Fundación Beit Shalom{% endblock %}
+{% block encabezado %}Quiero colaborar{% endblock %}
+{% block migas %}<li><span>Colaborar</span></li>{% endblock %}
+
+{% block content %}
+<div class="contenedor">
+  <div class="presentacion">
+    <h3>¡Queremos conocerte!</h3>
+    <p>Tu disposición para ayudar puede marcar una diferencia en la vida de un niño.
+       Registra tus datos y cuéntanos cómo te gustaría colaborar.</p>
+  </div>
+  {% with modo='publico', accion=url_for('colaborador.registrar'), texto_boton='Enviar solicitud de registro' %}
+    {% include "_form_colaborador.html" %}
+  {% endwith %}
+</div>
+{% endblock %}

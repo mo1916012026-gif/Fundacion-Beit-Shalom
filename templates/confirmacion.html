@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block titulo %}Solicitud recibida · Fundación Beit Shalom{% endblock %}
+{% block encabezado %}Solicitud recibida{% endblock %}
+{% block migas %}<li><span>Colaborar</span></li>{% endblock %}
+{% block content %}
+<div class="contenedor contenedor--centro">
+  <div class="icono-ok" aria-hidden="true">&#10003;</div>
+  <h3>¡Gracias por querer ayudar!</h3>
+  <p>Recibimos tu solicitud. El equipo de la Fundación la revisará y se pondrá en contacto contigo.</p>
+  <a href="{{ sitio_url }}" class="btn-enviar btn-enlace">Volver al sitio</a>
+</div>
+{% endblock %}

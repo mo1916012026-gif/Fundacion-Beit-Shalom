@@ -1,0 +1,11 @@
+{% extends "admin/base_admin.html" %}
+{% block titulo %}{{ titulo }} · Panel administrativo{% endblock %}
+{% block encabezado %}{{ titulo }}{% endblock %}
+{% block contenido %}
+<div class="contenedor">
+  <a href="{{ url_for('admin.listado') }}" class="enlace-volver">&larr; Volver al listado</a>
+  {% with modo='admin', texto_boton='Guardar' %}
+    {% include "_form_colaborador.html" %}
+  {% endwith %}
+</div>
+{% endblock %}

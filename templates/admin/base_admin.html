@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block clase_body %}beit-admin{% endblock %}
+{% block encabezado %}Panel administrativo{% endblock %}
+{% block migas %}<li><span>Administración</span></li>{% endblock %}
+
+{% block content %}
+{% if session.get('admin_id') %}
+<nav class="menu-admin" aria-label="Menú del panel">
+  <div class="menu-admin__interior">
+    <a href="{{ url_for('admin.dashboard') }}" class="{{ 'activo' if request.endpoint == 'admin.dashboard' }}">Resumen</a>
+    <a href="{{ url_for('admin.listado') }}" class="{{ 'activo' if request.endpoint in ('admin.listado', 'admin.detalle', 'admin.editar', 'admin.eliminar') }}">Colaboradores</a>
+    <a href="{{ url_for('admin.nuevo') }}" class="{{ 'activo' if request.endpoint == 'admin.nuevo' }}">Nuevo colaborador</a>
+    <span class="menu-admin__espacio"></span>
+    <span class="menu-admin__usuario">{{ session.get('admin_usuario') }}</span>
+    <a href="{{ url_for('admin.logout') }}" class="menu-admin__salir">Cerrar sesión</a>
+  </div>
+</nav>
+{% endif %}
+
+{% with mensajes = get_flashed_messages(with_categories=true) %}
+  {% if mensajes %}
+  <div class="contenedor contenedor--ancho contenedor--avisos">
+    {% for categoria, texto in mensajes %}
+      <div class="alerta alerta--{{ 'ok' if categoria == 'ok' else 'error' }}" role="status">{{ texto }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+
+{% block contenido %}{% endblock %}
+{% endblock %}

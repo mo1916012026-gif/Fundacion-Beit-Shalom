@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>{% block titulo %}Fundación Beit Shalom{% endblock %}</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/favicons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/images/favicons/favicon-16x16.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fredoka:wght@700&family=Schoolbell&display=swap" rel="stylesheet">
+
+  <!-- Estilos del sitio de la fundación (mismo diseño que index.html) -->
+  <link rel="stylesheet" href="/assets/vendors/bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/assets/vendors/animate/animate.min.css">
+  <link rel="stylesheet" href="/assets/vendors/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="/assets/vendors/kidearn-icons/style.css">
+  <link rel="stylesheet" href="/assets/css/kidearn.css">
+  <!-- Estilos propios de los formularios y del panel -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/formularios.css') }}">
+</head>
+<body class="{% block clase_body %}beit-publico{% endblock %}">
+  <div class="page-wrapper">
+    {% include "_cabecera.html" %}
+
+    <section class="page-header">
+      <div class="page-header__bg"></div>
+      <div class="container">
+        <h2 class="page-header__title">{% block encabezado %}Fundación Beit Shalom{% endblock %}</h2>
+        <ul class="kidearn-breadcrumb list-unstyled">
+          <li><a href="/">Inicio</a></li>
+          {% block migas %}{% endblock %}
+        </ul>
+      </div>
+    </section>
+
+    <main class="beit">
+      {% block content %}{% endblock %}
+    </main>
+
+    {% include "_pie.html" %}
+  {% include "_scripts.html" %}
+  <script src="{{ url_for('static', filename='js/validaciones.js') }}"></script>
+</body>
+</html>

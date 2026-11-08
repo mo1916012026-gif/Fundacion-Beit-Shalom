@@ -1,0 +1,20 @@
+{% extends "admin/base_admin.html" %}
+{% block titulo %}Acceso · Panel administrativo{% endblock %}
+{% block encabezado %}Acceso al panel{% endblock %}
+{% block contenido %}
+<div class="contenedor contenedor--estrecho">
+  <h3>Iniciar sesión</h3>
+  <p class="ayuda">Solo personal autorizado de la Fundación.</p>
+  <form method="POST" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="usuario">Usuario</label>
+    <input type="text" id="usuario" name="usuario" required maxlength="50" autocomplete="username">
+
+    <label for="clave">Contraseña</label>
+    <input type="password" id="clave" name="clave" required autocomplete="current-password">
+
+    <button type="submit" class="btn-enviar separado">Entrar</button>
+  </form>
+</div>
+{% endblock %}
