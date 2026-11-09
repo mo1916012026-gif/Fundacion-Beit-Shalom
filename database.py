@@ -1,7 +1,10 @@
 """Conexión a SQL Server. Es el único archivo que sabe cómo conectarse."""
 from contextlib import contextmanager
 
-import pyodbc
+try:
+    import pyodbc
+except ImportError:
+    pyodbc = None
 
 from config import Config
 
