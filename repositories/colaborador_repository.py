@@ -9,6 +9,15 @@ from database import transaccion
 from models.colaborador import ESTADOS
 from repositories.base_repository import BaseRepository
 
+# Áreas por defecto para Render / modo fallback (cuando no hay conexión SQL Server)
+AREAS_FALLBACK = [
+    {"id": 1, "nombre": "Apoyo Logístico y Eventos"},
+    {"id": 2, "nombre": "Comunicaciones y Redes Sociales"},
+    {"id": 3, "nombre": "Diseño Gráfico y Multimedia"},
+    {"id": 4, "nombre": "Voluntariado en Campo / Proyectos"},
+    {"id": 5, "nombre": "Administración y Gestión"}
+]
+
 
 class CorreoDuplicadoError(Exception):
     """El correo ya tiene una solicitud registrada."""
@@ -31,9 +40,12 @@ class ColaboradorRepository(BaseRepository):
 
     # ---------- Áreas (catálogo) ----------
     def obtener_areas_activas(self):
-        return self._consultar(
+        areas = self._consultar(
             "SELECT id, nombre FROM AreasColaboracion WHERE activa = 1 ORDER BY id"
         )
+        if not areas:
+            return AREAS_FALLBACK
+        return areas
 
     # ---------- CREATE ----------
     def guardar(self, colaborador):
