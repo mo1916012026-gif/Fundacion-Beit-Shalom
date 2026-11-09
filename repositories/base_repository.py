@@ -1,36 +1,54 @@
-"""Clase base de los repositorios (herencia).
+"""Clase base para todos los repositorios."""
+import sys
+from pathlib import Path
 
-Concentra el acceso a la conexión y la lectura de resultados para que los
-repositorios hijos solo escriban su SQL y no repitan el manejo de la conexión.
-"""
-from database import filas_a_diccionarios, obtener_conexion
+# Permitir la importación de fakes desde la raíz del proyecto
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+try:
+    import fakes
+except ImportError:
+    fakes = None
+
+from database import transaccion, filas_a_diccionarios
 
 
 class BaseRepository:
-    """Ofrece consultas de solo lectura; las escrituras usan database.transaccion()."""
+    """Clase base para todos los repositorios con soporte de fallback para Render."""
 
-    def _consultar(self, sql, params=()):
-        """Ejecuta un SELECT y devuelve una lista de diccionarios."""
-        con = obtener_conexion()
-        try:
-            cursor = con.cursor()
-            cursor.execute(sql, params)
-            return filas_a_diccionarios(cursor)
-        finally:
-            con.close()
+    def _consultar(self, query, params=None):
+        with transaccion() as con:
+            if con is None:
+                return []
+            cur = con.cursor()
+            if params:
+                cur.execute(query, params)
+            else:
+                cur.execute(query)
+            return filas_a_diccionarios(cur)
 
-    def _consultar_uno(self, sql, params=()):
-        """Devuelve la primera fila como diccionario, o None si no hay resultados."""
-        filas = self._consultar(sql, params)
+    def _consultar_uno(self, query, params=None):
+        filas = self._consultar(query, params)
         return filas[0] if filas else None
 
-    def _escalar(self, sql, params=()):
-        """Devuelve el primer valor de la primera fila (por ejemplo, un COUNT)."""
-        con = obtener_conexion()
-        try:
-            cursor = con.cursor()
-            cursor.execute(sql, params)
-            fila = cursor.fetchone()
-            return fila[0] if fila else None
-        finally:
-            con.close()
+    def _escalar(self, query, params=None):
+        with transaccion() as con:
+            if con is None:
+                return 0
+            cur = con.cursor()
+            if params:
+                cur.execute(query, params)
+            else:
+                cur.execute(query)
+            res = cur.fetchone()
+            return res[0] if res else 0
+
+    def _ejecutar(self, query, params=None):
+        with transaccion() as con:
+            if con is None:
+                return 0
+            cur = con.cursor()
+            if params:
+                cur.execute(query, params)
+            else:
+                cur.execute(query)
+            return cur.rowcount
