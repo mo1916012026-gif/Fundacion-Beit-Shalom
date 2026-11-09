@@ -31,13 +31,23 @@ def _cadena_conexion():
 
 
 def obtener_conexion():
+    if pyodbc is None:
+        return None
     return pyodbc.connect(_cadena_conexion(), timeout=Config.DB_TIMEOUT)
 
 
 @contextmanager
 def transaccion():
-    """Abre una conexión; confirma si todo sale bien y revierte si hay error."""
+    """Abre una conexión; si pyodbc no está disponible (ej. Render), retorna None de forma segura."""
+    if pyodbc is None:
+        yield None
+        return
+
     conexion = obtener_conexion()
+    if conexion is None:
+        yield None
+        return
+
     try:
         yield conexion
         conexion.commit()
@@ -49,5 +59,7 @@ def transaccion():
 
 
 def filas_a_diccionarios(cursor):
+    if cursor is None:
+        return []
     columnas = [c[0] for c in cursor.description]
     return [dict(zip(columnas, fila)) for fila in cursor.fetchall()]
