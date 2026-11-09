@@ -1,7 +1,9 @@
 """Repository de colaboradores: único lugar donde viven sus consultas SQL (CRUD).
 Todas las consultas usan parámetros (?) para evitar inyección SQL."""
-import pyodbc
-
+try:
+    import pyodbc
+except ImportError:
+    pyodbc = None
 from database import transaccion
 from models.colaborador import ESTADOS
 from repositories.base_repository import BaseRepository
