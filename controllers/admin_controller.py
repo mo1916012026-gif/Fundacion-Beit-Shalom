@@ -2,7 +2,7 @@
 import io
 import logging
 from functools import wraps
-from urllib.parse import import urlparse
+from urllib.parse import urlparse
 
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    send_file, session, url_for)
