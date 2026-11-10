@@ -1,10 +1,8 @@
-"""Conexión a la base de datos: soporta SQL Server (local via pyodbc) y PostgreSQL (Render via psycopg2)."""
+"""Conexión a la base de datos: soporta SQL Server (local) y PostgreSQL (Render)."""
 import os
 from contextlib import contextmanager
-
 from config import Config
 
-# Detectar si estamos en Render con PostgreSQL o en Local con SQL Server
 IS_POSTGRES = os.environ.get("DATABASE_URL") is not None
 
 if IS_POSTGRES:
@@ -23,7 +21,6 @@ else:
 
 
 def _valor(texto):
-    """Escapa un valor para la cadena de conexión ODBC (por si lleva ; o })."""
     return "{" + str(texto).replace("}", "}}") + "}"
 
 
@@ -66,83 +63,89 @@ def transaccion():
         yield conexion
         conexion.commit()
     except Exception:
-        conexion.rollback()
+        if conexion:
+            conexion.rollback()
         raise
     finally:
-        conexion.close()
+        if conexion:
+            conexion.close()
 
 
 def filas_a_diccionarios(cursor):
     if cursor is None:
         return []
     if IS_POSTGRES:
-        return [dict(f) for f in cursor.fetchall()]
+        res = cursor.fetchall()
+        return [dict(f) for f in res] if res else []
     columnas = [c[0] for c in cursor.description]
     return [dict(zip(columnas, fila)) for fila in cursor.fetchall()]
 
 
 def inicializar_db():
-    """Crea automáticamente las tablas en PostgreSQL (Render) o SQL Server (Local)."""
-    with transaccion() as con:
-        if con is None:
-            return
-        cur = con.cursor()
-        if IS_POSTGRES:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Colaboradores (
-                    id SERIAL PRIMARY KEY,
-                    nombre_completo VARCHAR(255) NOT NULL,
-                    pais VARCHAR(100) NOT NULL,
-                    correo VARCHAR(255) UNIQUE NOT NULL,
-                    telefono VARCHAR(50),
-                    modalidad VARCHAR(100),
-                    disponibilidad VARCHAR(100),
-                    motivacion TEXT,
-                    acepta_privacidad INT DEFAULT 1,
-                    estado VARCHAR(50) DEFAULT 'Pendiente',
-                    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
+    """Crea las tablas automáticamente al iniciar la app."""
+    try:
+        with transaccion() as con:
+            if con is None:
+                return
+            cur = con.cursor()
+            if IS_POSTGRES:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS Colaboradores (
+                        id SERIAL PRIMARY KEY,
+                        nombre_completo VARCHAR(255) NOT NULL,
+                        pais VARCHAR(100) NOT NULL,
+                        correo VARCHAR(255) UNIQUE NOT NULL,
+                        telefono VARCHAR(50),
+                        modalidad VARCHAR(100),
+                        disponibilidad VARCHAR(100),
+                        motivacion TEXT,
+                        acepta_privacidad INT DEFAULT 1,
+                        estado VARCHAR(50) DEFAULT 'Pendiente',
+                        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
 
-                CREATE TABLE IF NOT EXISTS AreasColaboracion (
-                    id SERIAL PRIMARY KEY,
-                    nombre VARCHAR(100) NOT NULL,
-                    activa INT DEFAULT 1
-                );
+                    CREATE TABLE IF NOT EXISTS AreasColaboracion (
+                        id SERIAL PRIMARY KEY,
+                        nombre VARCHAR(100) NOT NULL,
+                        activa INT DEFAULT 1
+                    );
 
-                CREATE TABLE IF NOT EXISTS ColaboradorAreas (
-                    id SERIAL PRIMARY KEY,
-                    colaborador_id INT REFERENCES Colaboradores(id) ON DELETE CASCADE,
-                    area_id INT REFERENCES AreasColaboracion(id) ON DELETE CASCADE
-                );
-            """)
-        else:
-            cur.execute("""
-                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Colaboradores' AND xtype='U')
-                CREATE TABLE Colaboradores (
-                    id INT IDENTITY(1,1) PRIMARY KEY,
-                    nombre_completo VARCHAR(255) NOT NULL,
-                    pais VARCHAR(100) NOT NULL,
-                    correo VARCHAR(255) UNIQUE NOT NULL,
-                    telefono VARCHAR(50),
-                    modalidad VARCHAR(100),
-                    disponibilidad VARCHAR(100),
-                    motivacion TEXT,
-                    acepta_privacidad INT DEFAULT 1,
-                    estado VARCHAR(50) DEFAULT 'Pendiente',
-                    fecha_registro DATETIME DEFAULT GETDATE()
-                );
+                    CREATE TABLE IF NOT EXISTS ColaboradorAreas (
+                        id SERIAL PRIMARY KEY,
+                        colaborador_id INT REFERENCES Colaboradores(id) ON DELETE CASCADE,
+                        area_id INT REFERENCES AreasColaboracion(id) ON DELETE CASCADE
+                    );
+                """)
+            else:
+                cur.execute("""
+                    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Colaboradores' AND xtype='U')
+                    CREATE TABLE Colaboradores (
+                        id INT IDENTITY(1,1) PRIMARY KEY,
+                        nombre_completo VARCHAR(255) NOT NULL,
+                        pais VARCHAR(100) NOT NULL,
+                        correo VARCHAR(255) UNIQUE NOT NULL,
+                        telefono VARCHAR(50),
+                        modalidad VARCHAR(100),
+                        disponibilidad VARCHAR(100),
+                        motivacion TEXT,
+                        acepta_privacidad INT DEFAULT 1,
+                        estado VARCHAR(50) DEFAULT 'Pendiente',
+                        fecha_registro DATETIME DEFAULT GETDATE()
+                    );
 
-                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AreasColaboracion' AND xtype='U')
-                CREATE TABLE AreasColaboracion (
-                    id INT IDENTITY(1,1) PRIMARY KEY,
-                    nombre VARCHAR(100) NOT NULL,
-                    activa INT DEFAULT 1
-                );
+                    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AreasColaboracion' AND xtype='U')
+                    CREATE TABLE AreasColaboracion (
+                        id INT IDENTITY(1,1) PRIMARY KEY,
+                        nombre VARCHAR(100) NOT NULL,
+                        activa INT DEFAULT 1
+                    );
 
-                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ColaboradorAreas' AND xtype='U')
-                CREATE TABLE ColaboradorAreas (
-                    id INT IDENTITY(1,1) PRIMARY KEY,
-                    colaborador_id INT FOREIGN KEY REFERENCES Colaboradores(id) ON DELETE CASCADE,
-                    area_id INT FOREIGN KEY REFERENCES AreasColaboracion(id) ON DELETE CASCADE
-                );
-            """)
+                    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ColaboradorAreas' AND xtype='U')
+                    CREATE TABLE ColaboradorAreas (
+                        id INT IDENTITY(1,1) PRIMARY KEY,
+                        colaborador_id INT FOREIGN KEY REFERENCES Colaboradores(id) ON DELETE CASCADE,
+                        area_id INT FOREIGN KEY REFERENCES AreasColaboracion(id) ON DELETE CASCADE
+                    );
+                """)
+    except Exception as e:
+        print(f"Error al inicializar DB: {e}")
