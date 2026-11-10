@@ -139,6 +139,48 @@ class ColaboradorRepository:
             "UPDATE Colaboradores SET estado = %s WHERE id = %s", (nuevo_estado, colaborador_id)
         )
 
+    def actualizar(self, colaborador_id, colaborador):
+        """Actualiza todos los datos de un colaborador. Devuelve False si no existe."""
+        with transaccion() as con:
+            if con is None:
+                return False
+            cur = con.cursor()
+            cur.execute(
+                "SELECT id FROM Colaboradores WHERE LOWER(correo) = %s AND id <> %s",
+                (colaborador.correo.lower(), colaborador_id),
+            )
+            if cur.fetchone():
+                raise CorreoDuplicadoError("El correo ya existe")
+
+            cur.execute(
+                """
+                UPDATE Colaboradores
+                SET nombre_completo = %s, pais = %s, correo = %s, telefono = %s,
+                    modalidad = %s, disponibilidad = %s, motivacion = %s
+                WHERE id = %s
+                """,
+                (
+                    colaborador.nombre,
+                    colaborador.pais,
+                    colaborador.correo,
+                    colaborador.telefono,
+                    colaborador.modalidad,
+                    colaborador.disponibilidad,
+                    colaborador.motivacion,
+                    colaborador_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                return False
+
+            cur.execute("DELETE FROM ColaboradorAreas WHERE colaborador_id = %s", (colaborador_id,))
+            for area_id in colaborador.areas:
+                cur.execute(
+                    "INSERT INTO ColaboradorAreas (colaborador_id, area_id) VALUES (%s, %s)",
+                    (colaborador_id, area_id),
+                )
+            return True
+
     def guardar(self, colaborador):
         with transaccion() as con:
             if con is None:
@@ -160,7 +202,7 @@ class ColaboradorRepository:
                 RETURNING id;
                 """,
                 (
-                    colaborador.nombre_completo,
+                    colaborador.nombre,
                     colaborador.pais,
                     colaborador.correo,
                     colaborador.telefono,
@@ -168,7 +210,7 @@ class ColaboradorRepository:
                     colaborador.disponibilidad,
                     colaborador.motivacion,
                     1 if colaborador.acepta_privacidad else 0,
-                    colaborador.estado or "Pendiente",
+                    getattr(colaborador, "estado", None) or "Pendiente",
                 ),
             )
             res = cur.fetchone()
