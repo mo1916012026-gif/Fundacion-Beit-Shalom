@@ -2,11 +2,17 @@
 {% block titulo %}Resumen · Panel administrativo{% endblock %}
 {% block encabezado %}Resumen de solicitudes{% endblock %}
 {% block contenido %}
+{% set estados_tarjetas = [
+  ("Pendiente", datos.pendiente),
+  ("En revisión", datos.en_revision),
+  ("Aprobado", datos.aprobado),
+  ("Rechazado", datos.rechazado)
+] %}
 <div class="contenedor contenedor--ancho">
   <div class="tarjetas">
     <div class="tarjeta"><span class="tarjeta__num">{{ datos.total }}</span>Solicitudes totales</div>
-    <div class="tarjeta"><span class="tarjeta__num">{{ datos.ultimos_7 }}</span>Últimos 7 días</div>
-    {% for estado, n in datos.por_estado.items() %}
+    <div class="tarjeta"><span class="tarjeta__num">{{ datos.ultimos_7_dias }}</span>Últimos 7 días</div>
+    {% for estado, n in estados_tarjetas %}
       <a class="tarjeta tarjeta--enlace" href="{{ url_for('admin.listado', estado=estado) }}">
         <span class="tarjeta__num">{{ n }}</span>{{ estado }}
       </a>
@@ -16,14 +22,16 @@
   <div class="dos-columnas">
     <section class="seccion">
       <h2>Áreas más elegidas</h2>
-      {% for nombre, n in datos.por_area %}
+      {% for nombre, n in datos.areas_populares %}
         <div class="barra"><span>{{ nombre }}</span>
           <meter min="0" max="{{ [datos.total, 1]|max }}" value="{{ n }}"></meter><b>{{ n }}</b></div>
+      {% else %}
+        <p class="ayuda">Aún no hay datos.</p>
       {% endfor %}
     </section>
     <section class="seccion">
       <h2>Países con más solicitudes</h2>
-      {% for nombre, n in datos.por_pais %}
+      {% for nombre, n in datos.paises_populares %}
         <div class="barra"><span>{{ nombre }}</span>
           <meter min="0" max="{{ [datos.total, 1]|max }}" value="{{ n }}"></meter><b>{{ n }}</b></div>
       {% else %}
