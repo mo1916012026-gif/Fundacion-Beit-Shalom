@@ -1,6 +1,6 @@
 """Repositorio para la gestión de colaboradores en la base de datos."""
 import logging
-from database import filas_a_diccionarios, transaccion
+from database import transaccion
 from models.colaborador import Colaborador
 
 logger = logging.getLogger(__name__)
@@ -11,10 +11,20 @@ class CorreoDuplicadoError(Exception):
     pass
 
 
+def _fila_a_dict(fila, columnas):
+    """Convierte una fila (tupla o dict) en diccionario con claves en minúscula.
+
+    No depende de filas_a_diccionarios, así se evita 'tuple index out of range'.
+    """
+    if isinstance(fila, dict):
+        return {str(k).lower(): v for k, v in fila.items()}
+    return {columnas[i].lower(): fila[i] for i in range(min(len(columnas), len(fila)))}
+
+
 class ColaboradorRepository:
 
     def _consultar(self, sql, parametros=None):
-        """Ejecuta SELECT de forma segura evitando errores de índices de tuplas."""
+        """Ejecuta SELECT y devuelve una lista de diccionarios."""
         if parametros is None:
             parametros = ()
         try:
@@ -26,10 +36,14 @@ class ColaboradorRepository:
                     cur.execute(sql, parametros)
                 else:
                     cur.execute(sql)
-                filas = filas_a_diccionarios(cur)
-                return [{k.lower(): v for k, v in f.items()} for f in filas]
-        except Exception as e:
-            logger.error(f"Error en consulta SQL: {e}")
+                if cur.description is None:
+                    return []
+                columnas = [d[0] for d in cur.description]
+                filas = cur.fetchall()
+                return [_fila_a_dict(f, columnas) for f in filas]
+        except Exception:
+            # logger.exception imprime el traceback completo en los logs de Render
+            logger.exception("Error en consulta SQL")
             return []
 
     def _ejecutar(self, sql, parametros=None):
@@ -46,8 +60,8 @@ class ColaboradorRepository:
                 else:
                     cur.execute(sql)
                 return True
-        except Exception as e:
-            logger.error(f"Error al ejecutar SQL: {e}")
+        except Exception:
+            logger.exception("Error al ejecutar SQL")
             return False
 
     def estadisticas(self):
@@ -66,8 +80,8 @@ class ColaboradorRepository:
                 "areas_populares": [],
                 "paises_populares": [],
             }
-        except Exception as e:
-            logger.error(f"Error al obtener estadísticas: {e}")
+        except Exception:
+            logger.exception("Error al obtener estadísticas")
             return {
                 "total": 0, "ultimos_7_dias": 0, "pendiente": 0,
                 "en_revision": 0, "aprobado": 0, "rechazado": 0,
@@ -79,7 +93,10 @@ class ColaboradorRepository:
         return [f["pais"] for f in filas if "pais" in f and f["pais"]]
 
     def obtener_areas_activas(self):
-        return self._consultar("SELECT id, nombre FROM AreasColaboracion WHERE activa = 1 ORDER BY nombre")
+        # activa::int funciona tanto si la columna es boolean como si es entero
+        return self._consultar(
+            "SELECT id, nombre FROM AreasColaboracion WHERE activa::int = 1 ORDER BY nombre"
+        )
 
     def listar(self, pagina=1, por_pagina=15, busqueda="", pais="", area_id=None, estado=""):
         sql = "SELECT * FROM Colaboradores WHERE 1=1"
@@ -102,7 +119,8 @@ class ColaboradorRepository:
         return filas[inicio:fin], total
 
     def listar_todos(self, busqueda="", pais="", area_id=None, estado=""):
-        filas, _ = self.listar(pagina=1, por_pagina=10000, busqueda=busqueda, pais=pais, area_id=area_id, estado=estado)
+        filas, _ = self.listar(pagina=1, por_pagina=10000, busqueda=busqueda,
+                               pais=pais, area_id=area_id, estado=estado)
         return filas
 
     def obtener(self, colaborador_id):
@@ -110,26 +128,34 @@ class ColaboradorRepository:
         if not filas:
             return None
         colaborador = filas[0]
-        areas = self._consultar("SELECT area_id FROM ColaboradorAreas WHERE colaborador_id = %s", (colaborador_id,))
+        areas = self._consultar(
+            "SELECT area_id FROM ColaboradorAreas WHERE colaborador_id = %s", (colaborador_id,)
+        )
         colaborador["areas_ids"] = [a["area_id"] for a in areas]
         return colaborador
 
     def cambiar_estado(self, colaborador_id, nuevo_estado):
-        return self._ejecutar("UPDATE Colaboradores SET estado = %s WHERE id = %s", (nuevo_estado, colaborador_id))
+        return self._ejecutar(
+            "UPDATE Colaboradores SET estado = %s WHERE id = %s", (nuevo_estado, colaborador_id)
+        )
 
     def guardar(self, colaborador):
         with transaccion() as con:
             if con is None:
                 return None
             cur = con.cursor()
-            cur.execute("SELECT id FROM Colaboradores WHERE LOWER(correo) = %s", (colaborador.correo.lower(),))
+            cur.execute(
+                "SELECT id FROM Colaboradores WHERE LOWER(correo) = %s",
+                (colaborador.correo.lower(),),
+            )
             if cur.fetchone():
                 raise CorreoDuplicadoError("El correo ya existe")
 
             cur.execute(
                 """
-                INSERT INTO Colaboradores 
-                (nombre_completo, pais, correo, telefono, modalidad, disponibilidad, motivacion, acepta_privacidad, estado)
+                INSERT INTO Colaboradores
+                (nombre_completo, pais, correo, telefono, modalidad, disponibilidad,
+                 motivacion, acepta_privacidad, estado)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id;
                 """,
@@ -146,7 +172,12 @@ class ColaboradorRepository:
                 ),
             )
             res = cur.fetchone()
-            nuevo_id = res[0] if res else None
+            if res is None:
+                nuevo_id = None
+            elif isinstance(res, dict):
+                nuevo_id = res.get("id")
+            else:
+                nuevo_id = res[0]
 
             if nuevo_id and colaborador.areas:
                 for area_id in colaborador.areas:
