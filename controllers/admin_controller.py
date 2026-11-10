@@ -85,7 +85,21 @@ def logout():
 @admin_bp.route("", strict_slashes=False)
 @login_requerido
 def dashboard():
-    return render_template("admin/dashboard.html", datos=colaboradores.estadisticas())
+    try:
+        datos = colaboradores.estadisticas()
+    except Exception as e:
+        logger.error(f"Error al cargar estadisticas del dashboard: {e}")
+        datos = {
+            "total": 0,
+            "ultimos_7_dias": 0,
+            "pendiente": 0,
+            "en_revision": 0,
+            "aprobado": 0,
+            "rechazado": 0,
+            "areas_populares": [],
+            "paises_populares": []
+        }
+    return render_template("admin/dashboard.html", datos=datos)
 
 
 def _filtros_desde_url():
