@@ -2,7 +2,7 @@
 import io
 import logging
 from functools import wraps
-from urllib.parse import urlparse
+from urllib.parse import import urlparse
 
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    send_file, session, url_for)
@@ -75,6 +75,7 @@ def login():
         return render_template("admin/login.html"), 401
     return render_template("admin/login.html")
 
+
 @admin_bp.route("/logout", methods=["GET", "POST"])
 def logout():
     session.clear()
@@ -89,17 +90,22 @@ def dashboard():
         datos = colaboradores.estadisticas()
     except Exception as e:
         logger.error(f"Error al cargar estadisticas del dashboard: {e}")
-        datos = {
-            "total": 0,
-            "ultimos_7_dias": 0,
-            "pendiente": 0,
-            "en_revision": 0,
-            "aprobado": 0,
-            "rechazado": 0,
-            "areas_populares": [],
-            "paises_populares": []
-        }
-    return render_template("admin/dashboard.html", datos=datos)
+        datos = {}
+
+    if not isinstance(datos, dict):
+        datos = {}
+
+    datos_seguros = {
+        "total": datos.get("total", 0),
+        "ultimos_7_dias": datos.get("ultimos_7_dias", 0),
+        "pendiente": datos.get("pendiente", 0),
+        "en_revision": datos.get("en_revision", 0),
+        "aprobado": datos.get("aprobado", 0),
+        "rechazado": datos.get("rechazado", 0),
+        "areas_populares": datos.get("areas_populares", []),
+        "paises_populares": datos.get("paises_populares", []),
+    }
+    return render_template("admin/dashboard.html", datos=datos_seguros)
 
 
 def _filtros_desde_url():
@@ -152,13 +158,12 @@ def _formulario_admin(titulo, accion, areas, datos=None, errores=None, codigo=20
 
 
 def _guardar_desde_formulario(areas, titulo, accion, colaborador_id=None):
-    """Valida el formulario y crea (sin id) o actualiza (con id) al colaborador.
-    Devuelve (respuesta_a_mostrar, None) si hubo un problema, o (None, id) si se guardó."""
+    """Valida el formulario y crea (sin id) o actualiza (con id) al colaborador."""
     colaborador = Colaborador.desde_formulario(request.form)
     errores = colaborador.validar(areas_validas=[a["id"] for a in areas])
     if errores:
         return _formulario_admin(titulo, accion, areas, colaborador.a_diccionario(),
-                                 errores, 400), None
+                                  errores, 400), None
     try:
         if colaborador_id is None:
             colaborador_id = colaboradores.guardar(colaborador)
@@ -167,14 +172,14 @@ def _guardar_desde_formulario(areas, titulo, accion, colaborador_id=None):
     except CorreoDuplicadoError:
         errores["correo"] = "Ese correo ya está registrado en otro colaborador."
         return _formulario_admin(titulo, accion, areas, colaborador.a_diccionario(),
-                                 errores, 409), None
+                                  errores, 409), None
     except HTTPException:
         raise
     except Exception:
         logger.exception("Error al guardar el colaborador desde el panel")
         errores["general"] = "No se pudo guardar. Intenta de nuevo."
         return _formulario_admin(titulo, accion, areas, colaborador.a_diccionario(),
-                                 errores, 500), None
+                                  errores, 500), None
     return None, colaborador_id
 
 
@@ -212,7 +217,7 @@ def editar(colaborador_id):
             "privacidad": True,
         }
         return _formulario_admin(titulo, accion, areas, datos)
-    respuesta, _ = _guardar_desde_formulario(areas, titulo, accion, colaborador_id)
+    respuesta, _ = _guardar_desde_formulario(areas, titulo, accion, colaborador_id=colaborador_id)
     if respuesta:
         return respuesta
     flash("Datos actualizados correctamente.", "ok")
@@ -257,7 +262,8 @@ def exportar():
         hoja.append([_seguro_para_excel(v) for v in (
             f["id"], f["nombre_completo"], f["pais"], f["correo"], f["telefono"] or "",
             f["modalidad"], f["disponibilidad"], f["areas"] or "", f["estado"],
-            f["fecha_registro"].strftime("%Y-%m-%d %H:%M"))])
+            f["fecha_registro"].strftime("%Y-%m-%d %H:%M") if hasattr(f["fecha_registro"], 'strftime') else str(f["fecha_registro"])
+        )])
     for columna, ancho in zip("ABCDEFGHIJ", (6, 30, 16, 32, 18, 14, 20, 45, 14, 18)):
         hoja.column_dimensions[columna].width = ancho
     memoria = io.BytesIO()
