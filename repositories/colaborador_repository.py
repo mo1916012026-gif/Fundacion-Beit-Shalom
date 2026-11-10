@@ -1,185 +1,162 @@
-import os
-from database import transaccion
-from models.colaborador import ESTADOS
-from repositories.base_repository import BaseRepository
+"""Repositorio para la gestión de colaboradores en la base de datos (Compatible con SQL Server y PostgreSQL)."""
+import logging
+from database import filas_a_diccionarios, transaccion
+from models.colaborador import Colaborador
 
-try:
-    import pyodbc
-except ImportError:
-    pyodbc = None
+logger = logging.getLogger(__name__)
 
-IS_POSTGRES = os.environ.get("DATABASE_URL") is not None
-PH = "%s" if IS_POSTGRES else "?"
-
-AREAS_FALLBACK = [
-    {"id": 1, "nombre": "Voluntariado presencial"},
-    {"id": 2, "nombre": "Apoyo profesional o técnico"},
-    {"id": 3, "nombre": "Apoyo educativo"},
-    {"id": 4, "nombre": "Organización de actividades"},
-    {"id": 5, "nombre": "Comunicación y difusión"},
-    {"id": 6, "nombre": "Apoyo administrativo"},
-    {"id": 7, "nombre": "Donaciones y gestión de recursos"},
-    {"id": 8, "nombre": "Otro tipo de colaboración"}
-]
 
 class CorreoDuplicadoError(Exception):
-    """El correo ya tiene una solicitud registrada."""
+    """Excepción cuando el correo ya existe en la base de datos."""
     pass
 
-def _es_duplicado(error):
-    texto = str(error)
-    return "2627" in texto or "2601" in texto or "unique" in texto.lower()
 
-def _escapar_like(texto):
-    for caracter in ("\\", "%", "_", "["):
-        texto = texto.replace(caracter, "\\" + caracter)
-    return texto
+class ColaboradorRepository:
 
-class ColaboradorRepository(BaseRepository):
+    def _consultar(self, sql, parametros=()):
+        """Ejecuta SELECT y convierte llaves a minúsculas para evitar KeyError entre PostgreSQL y SQL Server."""
+        try:
+            with transaccion() as con:
+                if con is None:
+                    return []
+                cur = con.cursor()
+                cur.execute(sql, parametros)
+                filas = filas_a_diccionarios(cur)
+                return [{k.lower(): v for k, v in f.items()} for f in filas]
+        except Exception as e:
+            logger.error(f"Error en consulta SQL: {e}")
+            return []
+
+    def _ejecutar(self, sql, parametros=()):
+        """Ejecuta INSERT, UPDATE o DELETE de forma segura."""
+        try:
+            with transaccion() as con:
+                if con is None:
+                    return False
+                cur = con.cursor()
+                cur.execute(sql, parametros)
+                return True
+        except Exception as e:
+            logger.error(f"Error al ejecutar SQL: {e}")
+            return False
+
+    def estadisticas(self):
+        """Retorna las estadísticas del dashboard calculadas de forma segura."""
+        try:
+            total = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores")
+            tot = total[0]["total"] if total else 0
+
+            pend = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores WHERE LOWER(estado) = 'pendiente'")
+            p_val = pend[0]["total"] if pend else 0
+
+            rev = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores WHERE LOWER(estado) LIKE '%revisi%'")
+            r_val = rev[0]["total"] if rev else 0
+
+            aprob = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores WHERE LOWER(estado) = 'aprobado'")
+            a_val = aprob[0]["total"] if aprob else 0
+
+            rech = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores WHERE LOWER(estado) = 'rechazado'")
+            rec_val = rech[0]["total"] if rech else 0
+
+            return {
+                "total": tot,
+                "ultimos_7_dias": tot,
+                "pendiente": p_val,
+                "en_revision": r_val,
+                "aprobado": a_val,
+                "rechazado": rec_val,
+                "areas_populares": [],
+                "paises_populares": [],
+            }
+        except Exception as e:
+            logger.error(f"Error al calcular estadísticas: {e}")
+            return {
+                "total": 0, "ultimos_7_dias": 0, "pendiente": 0,
+                "en_revision": 0, "aprobado": 0, "rechazado": 0,
+                "areas_populares": [], "paises_populares": []
+            }
+
+    def paises_registrados(self):
+        filas = self._consultar("SELECT DISTINCT pais FROM Colaboradores ORDER BY pais")
+        return [f["pais"] for f in filas if "pais" in f and f["pais"]]
 
     def obtener_areas_activas(self):
-        areas = self._consultar(
-            "SELECT id, nombre FROM AreasColaboracion WHERE activa = 1 ORDER BY id"
-        )
-        if not areas:
-            return AREAS_FALLBACK
-        return areas
+        return self._consultar("SELECT id, nombre FROM AreasColaboracion WHERE activa = 1 ORDER BY nombre")
+
+    def listar(self, pagina=1, por_pagina=15, busqueda="", pais="", area_id=None, estado=""):
+        sql = "SELECT * FROM Colaboradores WHERE 1=1"
+        params = []
+        if busqueda:
+            sql += " AND (LOWER(nombre_completo) LIKE %s OR LOWER(correo) LIKE %s)"
+            val = f"%{busqueda.lower()}%"
+            params.extend([val, val])
+        if pais:
+            sql += " AND pais = %s"
+            params.append(pais)
+        if estado:
+            sql += " AND LOWER(estado) = %s"
+            params.append(estado.lower())
+
+        filas = self._consultar(sql, tuple(params))
+        total = len(filas)
+        inicio = (pagina - 1) * por_pagina
+        fin = inicio + por_pagina
+        return filas[inicio:fin], total
+
+    def listar_todos(self, busqueda="", pais="", area_id=None, estado=""):
+        filas, _ = self.listar(pagina=1, por_pagina=10000, busqueda=busqueda, pais=pais, area_id=area_id, estado=estado)
+        return filas
+
+    def obtener(self, colaborador_id):
+        filas = self._consultar("SELECT * FROM Colaboradores WHERE id = %s", (colaborador_id,))
+        if not filas:
+            return None
+        colaborador = filas[0]
+        areas = self._consultar("SELECT area_id FROM ColaboradorAreas WHERE colaborador_id = %s", (colaborador_id,))
+        colaborador["areas_ids"] = [a["area_id"] for a in areas]
+        return colaborador
+
+    def cambiar_estado(self, colaborador_id, nuevo_estado):
+        return self._ejecutar("UPDATE Colaboradores SET estado = %s WHERE id = %s", (nuevo_estado, colaborador_id))
 
     def guardar(self, colaborador):
         with transaccion() as con:
             if con is None:
-                return 1
+                return None
             cur = con.cursor()
-            try:
-                if IS_POSTGRES:
-                    query = """
-                        INSERT INTO Colaboradores
-                        (nombre_completo, pais, correo, telefono, modalidad, disponibilidad, motivacion, acepta_privacidad)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        RETURNING id
-                    """
-                else:
-                    query = """
-                        INSERT INTO Colaboradores
-                        (nombre_completo, pais, correo, telefono, modalidad, disponibilidad, motivacion, acepta_privacidad)
-                        OUTPUT INSERTED.id
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """
+            cur.execute("SELECT id FROM Colaboradores WHERE LOWER(correo) = %s", (colaborador.correo.lower(),))
+            if cur.fetchone():
+                raise CorreoDuplicadoError("El correo ya existe")
 
-                cur.execute(query, (
-                    colaborador.nombre,
+            cur.execute(
+                """
+                INSERT INTO Colaboradores 
+                (nombre_completo, pais, correo, telefono, modalidad, disponibilidad, motivacion, acepta_privacidad, estado)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id;
+                """,
+                (
+                    colaborador.nombre_completo,
                     colaborador.pais,
                     colaborador.correo,
-                    colaborador.telefono or None,
+                    colaborador.telefono,
                     colaborador.modalidad,
                     colaborador.disponibilidad,
-                    colaborador.motivacion or None,
-                    1
-                ))
-                nuevo_id = cur.fetchone()[0]
-                self._guardar_areas(cur, nuevo_id, colaborador.areas)
-            except Exception as error:
-                if _es_duplicado(error):
-                    raise CorreoDuplicadoError() from error
-                raise
+                    colaborador.motivacion,
+                    1 if colaborador.acepta_privacidad else 0,
+                    colaborador.estado or "Pendiente",
+                ),
+            )
+            res = cur.fetchone()
+            nuevo_id = res[0] if res else None
+
+            if nuevo_id and colaborador.areas:
+                for area_id in colaborador.areas:
+                    cur.execute(
+                        "INSERT INTO ColaboradorAreas (colaborador_id, area_id) VALUES (%s, %s)",
+                        (nuevo_id, area_id),
+                    )
             return nuevo_id
 
-    @staticmethod
-    def _guardar_areas(cursor, colaborador_id, areas):
-        query = f"INSERT INTO ColaboradorAreas (colaborador_id, area_id) VALUES ({PH}, {PH})"
-        for area_id in areas:
-            cursor.execute(query, (colaborador_id, area_id))
-
-    def _filtros(self, busqueda, pais, area_id, estado):
-        donde, params = ["1 = 1"], []
-        if busqueda:
-            patron = f"%{_escapar_like(busqueda)}%"
-            donde.append(f"(c.nombre_completo LIKE {PH} ESCAPE '\\' OR c.correo LIKE {PH} ESCAPE '\\')")
-            params += [patron, patron]
-        if pais:
-            donde.append(f"c.pais = {PH}")
-            params.append(pais)
-        if area_id:
-            donde.append(f"EXISTS (SELECT 1 FROM ColaboradorAreas ca WHERE ca.colaborador_id = c.id AND ca.area_id = {PH})")
-            params.append(area_id)
-        if estado in ESTADOS:
-            donde.append(f"c.estado = {PH}")
-            params.append(estado)
-        return " AND ".join(donde), params
-
-    @property
-    def _SELECT(self):
-        return f"""
-            SELECT c.id, c.nombre_completo, c.pais, c.correo, c.telefono, c.modalidad,
-                   c.disponibilidad, c.estado, c.fecha_registro,
-                   (SELECT STRING_AGG(a.nombre, ', ')
-                    FROM ColaboradorAreas ca
-                    JOIN AreasColaboracion a ON a.id = ca.area_id
-                    WHERE ca.colaborador_id = c.id) AS areas
-            FROM Colaboradores c
-        """
-
-    def listar(self, busqueda="", pais="", area_id=None, estado="", pagina=1, por_pagina=15):
-        donde, params = self._filtros(busqueda, pais, area_id, estado)
-        total = self._escalar(f"SELECT COUNT(*) FROM Colaboradores c WHERE {donde}", params)
-        
-        offset = (pagina - 1) * por_pagina
-        if IS_POSTGRES:
-            query = f"{self._SELECT} WHERE {donde} ORDER BY c.fecha_registro DESC LIMIT {PH} OFFSET {PH}"
-            params_paginacion = params + [por_pagina, offset]
-        else:
-            query = f"{self._SELECT} WHERE {donde} ORDER BY c.fecha_registro DESC OFFSET {PH} ROWS FETCH NEXT {PH} ROWS ONLY"
-            params_paginacion = params + [offset, por_pagina]
-
-        filas = self._consultar(query, params_paginacion)
-        return filas, total
-
-    def obtener(self, colaborador_id):
-        query = f"""
-            SELECT id, nombre_completo, pais, correo, telefono, modalidad,
-                   disponibilidad, motivacion, estado, fecha_registro
-            FROM Colaboradores WHERE id = {PH}
-        """
-        colaborador = self._consultar_uno(query, (colaborador_id,))
-        if colaborador is None:
-            return None
-            
-        query_areas = f"""
-            SELECT a.id, a.nombre FROM ColaboradorAreas ca
-            JOIN AreasColaboracion a ON a.id = ca.area_id
-            WHERE ca.colaborador_id = {PH} ORDER BY a.id
-        """
-        areas = self._consultar(query_areas, (colaborador_id,))
-        colaborador["areas"] = [a["nombre"] for a in areas]
-        colaborador["areas_ids"] = [a["id"] for a in areas]
-        return colaborador
-
-    def estadisticas(self):
-        por_estado = {e: 0 for e in ESTADOS}
-        for fila in self._consultar("SELECT estado, COUNT(*) AS total FROM Colaboradores GROUP BY estado"):
-            por_estado[fila["estado"]] = fila["total"]
-
-        por_pais = self._consultar(
-            f"SELECT c.pais, COUNT(*) AS total FROM Colaboradores c GROUP BY c.pais ORDER BY total DESC LIMIT 5" if IS_POSTGRES
-            else "SELECT TOP 5 c.pais, COUNT(*) AS total FROM Colaboradores c GROUP BY c.pais ORDER BY total DESC"
-        )
-
-        por_area = self._consultar("""
-            SELECT a.nombre, COUNT(ca.id) AS total FROM AreasColaboracion a
-            LEFT JOIN ColaboradorAreas ca ON a.id = ca.area_id
-            GROUP BY a.id, a.nombre ORDER BY total DESC, a.id
-        """)
-
-        filtro_7dias = "fecha_registro >= NOW() - INTERVAL '7 days'" if IS_POSTGRES else "fecha_registro >= DATEADD(DAY, -7, SYSDATETIME())"
-        ultimos_7 = self._escalar(f"SELECT COUNT(*) FROM Colaboradores WHERE {filtro_7dias}") or 0
-
-        return {
-            "total": sum(por_estado.values()),
-            "por_estado": por_estado,
-            "por_pais": por_pais,
-            "por_area": por_area,
-            "ultimos_7": ultimos_7,
-        }
-
-    def paises_registrados(self):
-        return [f["pais"] for f in self._consultar("SELECT DISTINCT pais FROM Colaboradores ORDER BY pais")]
+    def eliminar(self, colaborador_id):
+        return self._ejecutar("DELETE FROM Colaboradores WHERE id = %s", (colaborador_id,))
