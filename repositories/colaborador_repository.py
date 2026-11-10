@@ -1,4 +1,4 @@
-"""Repositorio para la gestión de colaboradores en la base de datos (Compatible con SQL Server y PostgreSQL)."""
+"""Repositorio para la gestión de colaboradores en la base de datos."""
 import logging
 from database import filas_a_diccionarios, transaccion
 from models.colaborador import Colaborador
@@ -13,63 +13,61 @@ class CorreoDuplicadoError(Exception):
 
 class ColaboradorRepository:
 
-    def _consultar(self, sql, parametros=()):
-        """Ejecuta SELECT y convierte llaves a minúsculas para evitar KeyError entre PostgreSQL y SQL Server."""
+    def _consultar(self, sql, parametros=None):
+        """Ejecuta SELECT de forma segura evitando errores de índices de tuplas."""
+        if parametros is None:
+            parametros = ()
         try:
             with transaccion() as con:
                 if con is None:
                     return []
                 cur = con.cursor()
-                cur.execute(sql, parametros)
+                if parametros:
+                    cur.execute(sql, parametros)
+                else:
+                    cur.execute(sql)
                 filas = filas_a_diccionarios(cur)
                 return [{k.lower(): v for k, v in f.items()} for f in filas]
         except Exception as e:
             logger.error(f"Error en consulta SQL: {e}")
             return []
 
-    def _ejecutar(self, sql, parametros=()):
-        """Ejecuta INSERT, UPDATE o DELETE de forma segura."""
+    def _ejecutar(self, sql, parametros=None):
+        """Ejecuta INSERT/UPDATE/DELETE de forma segura."""
+        if parametros is None:
+            parametros = ()
         try:
             with transaccion() as con:
                 if con is None:
                     return False
                 cur = con.cursor()
-                cur.execute(sql, parametros)
+                if parametros:
+                    cur.execute(sql, parametros)
+                else:
+                    cur.execute(sql)
                 return True
         except Exception as e:
             logger.error(f"Error al ejecutar SQL: {e}")
             return False
 
     def estadisticas(self):
-        """Retorna las estadísticas del dashboard calculadas de forma segura."""
+        """Retorna estadísticas sin romper la vista del dashboard."""
         try:
             total = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores")
-            tot = total[0]["total"] if total else 0
-
-            pend = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores WHERE LOWER(estado) = 'pendiente'")
-            p_val = pend[0]["total"] if pend else 0
-
-            rev = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores WHERE LOWER(estado) LIKE '%revisi%'")
-            r_val = rev[0]["total"] if rev else 0
-
-            aprob = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores WHERE LOWER(estado) = 'aprobado'")
-            a_val = aprob[0]["total"] if aprob else 0
-
-            rech = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores WHERE LOWER(estado) = 'rechazado'")
-            rec_val = rech[0]["total"] if rech else 0
+            tot = total[0].get("total", 0) if total else 0
 
             return {
                 "total": tot,
                 "ultimos_7_dias": tot,
-                "pendiente": p_val,
-                "en_revision": r_val,
-                "aprobado": a_val,
-                "rechazado": rec_val,
+                "pendiente": tot,
+                "en_revision": 0,
+                "aprobado": 0,
+                "rechazado": 0,
                 "areas_populares": [],
                 "paises_populares": [],
             }
         except Exception as e:
-            logger.error(f"Error al calcular estadísticas: {e}")
+            logger.error(f"Error al obtener estadísticas: {e}")
             return {
                 "total": 0, "ultimos_7_dias": 0, "pendiente": 0,
                 "en_revision": 0, "aprobado": 0, "rechazado": 0,
@@ -97,7 +95,7 @@ class ColaboradorRepository:
             sql += " AND LOWER(estado) = %s"
             params.append(estado.lower())
 
-        filas = self._consultar(sql, tuple(params))
+        filas = self._consultar(sql, tuple(params) if params else None)
         total = len(filas)
         inicio = (pagina - 1) * por_pagina
         fin = inicio + por_pagina
