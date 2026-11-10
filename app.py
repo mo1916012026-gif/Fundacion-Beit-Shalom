@@ -8,7 +8,7 @@ from config import Config
 from controllers.admin_controller import admin_bp
 from controllers.colaborador_controller import colaborador_bp
 from controllers.sitio_controller import sitio_bp
-#from database import db
+from database import inicializar_db
 
 csrf = CSRFProtect()
 
@@ -20,10 +20,13 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     csrf.init_app(app)
-    #db.init_app(app)
 
-   # with app.app_context():
-       # db.create_all()
+    # Crear tablas automáticamente en la base de datos conectada (Render/Local)
+    with app.app_context():
+        try:
+            inicializar_db()
+        except Exception as e:
+            logging.error(f"Error al inicializar la base de datos: {e}")
 
     app.register_blueprint(colaborador_bp)
     app.register_blueprint(admin_bp)
