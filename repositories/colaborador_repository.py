@@ -11,11 +11,14 @@ from repositories.base_repository import BaseRepository
 
 # Áreas por defecto para Render / modo fallback (cuando no hay conexión SQL Server)
 AREAS_FALLBACK = [
-    {"id": 1, "nombre": "Apoyo Logístico y Eventos"},
-    {"id": 2, "nombre": "Comunicaciones y Redes Sociales"},
-    {"id": 3, "nombre": "Diseño Gráfico y Multimedia"},
-    {"id": 4, "nombre": "Voluntariado en Campo / Proyectos"},
-    {"id": 5, "nombre": "Administración y Gestión"}
+    {"id": 1, "nombre": "Voluntariado presencial"},
+    {"id": 2, "nombre": "Apoyo profesional o técnico"},
+    {"id": 3, "nombre": "Apoyo educativo"},
+    {"id": 4, "nombre": "Organización de actividades"},
+    {"id": 5, "nombre": "Comunicación y difusión"},
+    {"id": 6, "nombre": "Apoyo administrativo"},
+    {"id": 7, "nombre": "Donaciones y gestión de recursos"},
+    {"id": 8, "nombre": "Otro tipo de colaboración"}
 ]
 
 
