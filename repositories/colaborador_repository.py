@@ -1,6 +1,6 @@
 """Repositorio para la gestión de colaboradores en la base de datos."""
 import logging
-from database import transaccion
+from database import IS_POSTGRES, transaccion
 from models.colaborador import Colaborador
 
 logger = logging.getLogger(__name__)
@@ -70,15 +70,35 @@ class ColaboradorRepository:
             total = self._consultar("SELECT COUNT(*) AS total FROM Colaboradores")
             tot = total[0].get("total", 0) if total else 0
 
+            por_estado = {}
+            for f in self._consultar("SELECT estado, COUNT(*) AS n FROM Colaboradores GROUP BY estado"):
+                por_estado[str(f.get("estado") or "").lower()] = f.get("n", 0)
+
+            if IS_POSTGRES:
+                sql_7 = "SELECT COUNT(*) AS n FROM Colaboradores WHERE fecha_registro >= NOW() - INTERVAL '7 days'"
+            else:
+                sql_7 = "SELECT COUNT(*) AS n FROM Colaboradores WHERE fecha_registro >= DATEADD(DAY, -7, SYSDATETIME())"
+            ult = self._consultar(sql_7)
+            ultimos_7 = ult[0].get("n", 0) if ult else 0
+
+            areas = self._consultar(
+                "SELECT a.nombre AS nombre, COUNT(*) AS n "
+                "FROM ColaboradorAreas ca JOIN AreasColaboracion a ON a.id = ca.area_id "
+                "GROUP BY a.nombre ORDER BY n DESC"
+            )
+            paises = self._consultar(
+                "SELECT pais, COUNT(*) AS n FROM Colaboradores GROUP BY pais ORDER BY n DESC"
+            )
+
             return {
                 "total": tot,
-                "ultimos_7_dias": tot,
-                "pendiente": tot,
-                "en_revision": 0,
-                "aprobado": 0,
-                "rechazado": 0,
-                "areas_populares": [],
-                "paises_populares": [],
+                "ultimos_7_dias": ultimos_7,
+                "pendiente": por_estado.get("pendiente", 0),
+                "en_revision": por_estado.get("en revisión", 0),
+                "aprobado": por_estado.get("aprobado", 0),
+                "rechazado": por_estado.get("rechazado", 0),
+                "areas_populares": [(f["nombre"], f["n"]) for f in areas[:5]],
+                "paises_populares": [(f["pais"], f["n"]) for f in paises[:5]],
             }
         except Exception:
             logger.exception("Error al obtener estadísticas")
@@ -99,7 +119,12 @@ class ColaboradorRepository:
         )
 
     def listar(self, pagina=1, por_pagina=15, busqueda="", pais="", area_id=None, estado=""):
-        sql = "SELECT * FROM Colaboradores WHERE 1=1"
+        sql = (
+            "SELECT c.*, (SELECT STRING_AGG(a.nombre, ', ') "
+            "FROM ColaboradorAreas ca JOIN AreasColaboracion a ON a.id = ca.area_id "
+            "WHERE ca.colaborador_id = c.id) AS areas "
+            "FROM Colaboradores c WHERE 1=1"
+        )
         params = []
         if busqueda:
             sql += " AND (LOWER(nombre_completo) LIKE %s OR LOWER(correo) LIKE %s)"
@@ -111,6 +136,10 @@ class ColaboradorRepository:
         if estado:
             sql += " AND LOWER(estado) = %s"
             params.append(estado.lower())
+        if area_id:
+            sql += (" AND EXISTS (SELECT 1 FROM ColaboradorAreas x "
+                    "WHERE x.colaborador_id = c.id AND x.area_id = %s)")
+            params.append(area_id)
 
         filas = self._consultar(sql, tuple(params) if params else None)
         total = len(filas)
