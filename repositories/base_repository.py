@@ -9,13 +9,21 @@ try:
 except ImportError:
     fakes = None
 
-from database import transaccion, filas_a_diccionarios
+from database import IS_POSTGRES, transaccion, filas_a_diccionarios
+
+
+def _adaptar(query):
+    """SQL Server usa '?' como marcador y PostgreSQL usa '%s'. Convierte si hace falta."""
+    if IS_POSTGRES:
+        return query.replace("?", "%s")
+    return query
 
 
 class BaseRepository:
     """Clase base para todos los repositorios con soporte de fallback para Render."""
 
     def _consultar(self, query, params=None):
+        query = _adaptar(query)
         with transaccion() as con:
             if con is None:
                 return []
@@ -31,6 +39,7 @@ class BaseRepository:
         return filas[0] if filas else None
 
     def _escalar(self, query, params=None):
+        query = _adaptar(query)
         with transaccion() as con:
             if con is None:
                 return 0
@@ -40,9 +49,14 @@ class BaseRepository:
             else:
                 cur.execute(query)
             res = cur.fetchone()
-            return res[0] if res else 0
+            if not res:
+                return 0
+            if isinstance(res, dict):
+                return next(iter(res.values()))
+            return res[0]
 
     def _ejecutar(self, query, params=None):
+        query = _adaptar(query)
         with transaccion() as con:
             if con is None:
                 return 0
