@@ -46,11 +46,10 @@ def _cadena_conexion():
 def obtener_conexion():
     url = os.environ.get("DATABASE_URL")
     if IS_POSTGRES and url:
-        # En Render arreglamos el prefijo de la URL de PostgreSQL si es necesario
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
         return psycopg2.connect(url, cursor_factory=RealDictCursor)
-    
+
     if pyodbc is None:
         return None
     return pyodbc.connect(_cadena_conexion(), timeout=Config.DB_TIMEOUT)
@@ -58,7 +57,6 @@ def obtener_conexion():
 
 @contextmanager
 def transaccion():
-    """Abre una conexión y gestiona transacciones para PostgreSQL o SQL Server."""
     conexion = obtener_conexion()
     if conexion is None:
         yield None
@@ -78,7 +76,6 @@ def filas_a_diccionarios(cursor):
     if cursor is None:
         return []
     if IS_POSTGRES:
-        # En psycopg2 con RealDictCursor las filas ya son dicts
         return [dict(f) for f in cursor.fetchall()]
     columnas = [c[0] for c in cursor.description]
     return [dict(zip(columnas, fila)) for fila in cursor.fetchall()]
@@ -116,5 +113,36 @@ def inicializar_db():
                     id SERIAL PRIMARY KEY,
                     colaborador_id INT REFERENCES Colaboradores(id) ON DELETE CASCADE,
                     area_id INT REFERENCES AreasColaboracion(id) ON DELETE CASCADE
+                );
+            """)
+        else:
+            cur.execute("""
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Colaboradores' AND xtype='U')
+                CREATE TABLE Colaboradores (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    nombre_completo VARCHAR(255) NOT NULL,
+                    pais VARCHAR(100) NOT NULL,
+                    correo VARCHAR(255) UNIQUE NOT NULL,
+                    telefono VARCHAR(50),
+                    modalidad VARCHAR(100),
+                    disponibilidad VARCHAR(100),
+                    motivacion TEXT,
+                    acepta_privacidad INT DEFAULT 1,
+                    estado VARCHAR(50) DEFAULT 'Pendiente',
+                    fecha_registro DATETIME DEFAULT GETDATE()
+                );
+
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AreasColaboracion' AND xtype='U')
+                CREATE TABLE AreasColaboracion (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    nombre VARCHAR(100) NOT NULL,
+                    activa INT DEFAULT 1
+                );
+
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ColaboradorAreas' AND xtype='U')
+                CREATE TABLE ColaboradorAreas (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    colaborador_id INT FOREIGN KEY REFERENCES Colaboradores(id) ON DELETE CASCADE,
+                    area_id INT FOREIGN KEY REFERENCES AreasColaboracion(id) ON DELETE CASCADE
                 );
             """)
