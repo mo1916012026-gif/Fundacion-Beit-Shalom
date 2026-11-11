@@ -1,4 +1,4 @@
-"""Repositorio para la gestión de colaboradores en la base de datos."""
+"""Repositorio para la gestión de colaboradores (funciona con SQL Server local y PostgreSQL en Render)."""
 import logging
 from database import IS_POSTGRES, transaccion
 from models.colaborador import Colaborador
@@ -11,14 +11,29 @@ class CorreoDuplicadoError(Exception):
     pass
 
 
-def _fila_a_dict(fila, columnas):
-    """Convierte una fila (tupla o dict) en diccionario con claves en minúscula.
+def _adaptar(sql):
+    """PostgreSQL usa %s como marcador y SQL Server usa ?. Aquí se escribe con %s y se convierte."""
+    if IS_POSTGRES:
+        return sql
+    return sql.replace("%s", "?")
 
-    No depende de filas_a_diccionarios, así se evita 'tuple index out of range'.
-    """
+
+def _fila_a_dict(fila, columnas):
+    """Convierte una fila (tupla o dict) en diccionario con claves en minúscula."""
     if isinstance(fila, dict):
         return {str(k).lower(): v for k, v in fila.items()}
     return {columnas[i].lower(): fila[i] for i in range(min(len(columnas), len(fila)))}
+
+
+def _primer_valor(fila, clave=None):
+    """Lee el primer valor de una fila, sea tupla o diccionario."""
+    if fila is None:
+        return None
+    if isinstance(fila, dict):
+        if clave is not None and clave in fila:
+            return fila[clave]
+        return next(iter(fila.values()), None)
+    return fila[0]
 
 
 class ColaboradorRepository:
@@ -32,6 +47,7 @@ class ColaboradorRepository:
                 if con is None:
                     return []
                 cur = con.cursor()
+                sql = _adaptar(sql)
                 if parametros:
                     cur.execute(sql, parametros)
                 else:
@@ -42,7 +58,6 @@ class ColaboradorRepository:
                 filas = cur.fetchall()
                 return [_fila_a_dict(f, columnas) for f in filas]
         except Exception:
-            # logger.exception imprime el traceback completo en los logs de Render
             logger.exception("Error en consulta SQL")
             return []
 
@@ -55,6 +70,7 @@ class ColaboradorRepository:
                 if con is None:
                     return False
                 cur = con.cursor()
+                sql = _adaptar(sql)
                 if parametros:
                     cur.execute(sql, parametros)
                 else:
@@ -113,9 +129,8 @@ class ColaboradorRepository:
         return [f["pais"] for f in filas if "pais" in f and f["pais"]]
 
     def obtener_areas_activas(self):
-        # activa::int funciona tanto si la columna es boolean como si es entero
         return self._consultar(
-            "SELECT id, nombre FROM AreasColaboracion WHERE activa::int = 1 ORDER BY nombre"
+            "SELECT id, nombre FROM AreasColaboracion WHERE activa = 1 ORDER BY nombre"
         )
 
     def listar(self, pagina=1, por_pagina=15, busqueda="", pais="", area_id=None, estado=""):
@@ -175,19 +190,21 @@ class ColaboradorRepository:
                 return False
             cur = con.cursor()
             cur.execute(
-                "SELECT id FROM Colaboradores WHERE LOWER(correo) = %s AND id <> %s",
+                _adaptar("SELECT id FROM Colaboradores WHERE LOWER(correo) = %s AND id <> %s"),
                 (colaborador.correo.lower(), colaborador_id),
             )
             if cur.fetchone():
                 raise CorreoDuplicadoError("El correo ya existe")
 
             cur.execute(
-                """
-                UPDATE Colaboradores
-                SET nombre_completo = %s, pais = %s, correo = %s, telefono = %s,
-                    modalidad = %s, disponibilidad = %s, motivacion = %s
-                WHERE id = %s
-                """,
+                _adaptar(
+                    """
+                    UPDATE Colaboradores
+                    SET nombre_completo = %s, pais = %s, correo = %s, telefono = %s,
+                        modalidad = %s, disponibilidad = %s, motivacion = %s
+                    WHERE id = %s
+                    """
+                ),
                 (
                     colaborador.nombre,
                     colaborador.pais,
@@ -202,10 +219,13 @@ class ColaboradorRepository:
             if cur.rowcount == 0:
                 return False
 
-            cur.execute("DELETE FROM ColaboradorAreas WHERE colaborador_id = %s", (colaborador_id,))
+            cur.execute(
+                _adaptar("DELETE FROM ColaboradorAreas WHERE colaborador_id = %s"),
+                (colaborador_id,),
+            )
             for area_id in colaborador.areas:
                 cur.execute(
-                    "INSERT INTO ColaboradorAreas (colaborador_id, area_id) VALUES (%s, %s)",
+                    _adaptar("INSERT INTO ColaboradorAreas (colaborador_id, area_id) VALUES (%s, %s)"),
                     (colaborador_id, area_id),
                 )
             return True
@@ -216,20 +236,30 @@ class ColaboradorRepository:
                 return None
             cur = con.cursor()
             cur.execute(
-                "SELECT id FROM Colaboradores WHERE LOWER(correo) = %s",
+                _adaptar("SELECT id FROM Colaboradores WHERE LOWER(correo) = %s"),
                 (colaborador.correo.lower(),),
             )
             if cur.fetchone():
                 raise CorreoDuplicadoError("El correo ya existe")
 
+            if IS_POSTGRES:
+                insertar = (
+                    "INSERT INTO Colaboradores "
+                    "(nombre_completo, pais, correo, telefono, modalidad, disponibilidad, "
+                    "motivacion, acepta_privacidad, estado) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id"
+                )
+            else:
+                insertar = (
+                    "INSERT INTO Colaboradores "
+                    "(nombre_completo, pais, correo, telefono, modalidad, disponibilidad, "
+                    "motivacion, acepta_privacidad, estado) "
+                    "OUTPUT INSERTED.id "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                )
+
             cur.execute(
-                """
-                INSERT INTO Colaboradores
-                (nombre_completo, pais, correo, telefono, modalidad, disponibilidad,
-                 motivacion, acepta_privacidad, estado)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id;
-                """,
+                _adaptar(insertar),
                 (
                     colaborador.nombre,
                     colaborador.pais,
@@ -242,18 +272,12 @@ class ColaboradorRepository:
                     getattr(colaborador, "estado", None) or "Pendiente",
                 ),
             )
-            res = cur.fetchone()
-            if res is None:
-                nuevo_id = None
-            elif isinstance(res, dict):
-                nuevo_id = res.get("id")
-            else:
-                nuevo_id = res[0]
+            nuevo_id = _primer_valor(cur.fetchone(), "id")
 
             if nuevo_id and colaborador.areas:
                 for area_id in colaborador.areas:
                     cur.execute(
-                        "INSERT INTO ColaboradorAreas (colaborador_id, area_id) VALUES (%s, %s)",
+                        _adaptar("INSERT INTO ColaboradorAreas (colaborador_id, area_id) VALUES (%s, %s)"),
                         (nuevo_id, area_id),
                     )
             return nuevo_id
