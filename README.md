@@ -1,6 +1,6 @@
 # Fundación Beit Shalom · Sitio web + Registro de colaboradores
 
-Python · Flask · POO · Arquitectura MVC · SQL Server (pyodbc) · HTML/CSS/JS
+Python · Flask · POO · Arquitectura MVC · SQL Server (local) / PostgreSQL (Render) · HTML/CSS/JS
 
 Un solo servidor entrega el **sitio de la fundación** (`sitio/`, con su menú) y los **formularios**:
 el menú del sitio tiene la opción **Colaborar → Quiero colaborar / Acceso administrador**.
@@ -27,8 +27,9 @@ Otros: `app.py` (crea la app), `config.py` (lee `.env`), `database.py` (conexió
 
 ## Requisitos
 - Windows con Python 3.10+ y VS Code
-- SQL Server 2017+ (o Express) y **ODBC Driver 17 o 18 for SQL Server**
-- Librerías: `requirements.txt` (Flask, Flask-WTF, pyodbc, python-dotenv, openpyxl, waitress)
+- Uso local: SQL Server 2017+ (o Express) y **ODBC Driver 17 o 18 for SQL Server**
+- Uso en la nube: una base PostgreSQL (por ejemplo la de Render)
+- Librerías: `requirements.txt` (Flask, Flask-WTF, python-dotenv, openpyxl, waitress, gunicorn, psycopg2-binary; `pyodbc` se instala solo en Windows)
 
 ## Instalación
 1. En SSMS ejecuta `sql/01_base_de_datos.sql` (crea `BeitShalomDB`, tablas, llaves y áreas).
@@ -52,12 +53,20 @@ Otros: `app.py` (crea la app), `config.py` (lee `.env`), `database.py` (conexió
 | `FLASK_DEBUG` | `1` en desarrollo, `0` en producción |
 | `COOKIES_SEGURAS` | `1` solo con HTTPS |
 | `SITIO_URL` | Destino del botón "Volver al sitio" (`/`) |
+| `DATABASE_URL` | Solo en la nube: URL de PostgreSQL. Si existe, la app usa PostgreSQL y no lee las variables `DB_*` |
 | `DB_DRIVER` | `ODBC Driver 17 for SQL Server` o `18` |
 | `DB_SERVER` | `localhost\SQLEXPRESS`, o `IP,1433` |
 | `DB_NAME` | `BeitShalomDB` |
 | `DB_TRUSTED` | `1` = login de Windows; `0` = usar `DB_USER` y `DB_PASSWORD` |
 | `DB_USER`, `DB_PASSWORD` | Usuario SQL (p. ej. `beitshalom_app`) |
 | `DB_ENCRYPT`, `DB_TRUST_CERT` | Cifrado de la conexión (`no`/`yes` en local) |
+
+## Despliegue en la nube (Render + PostgreSQL)
+1. Crea la base PostgreSQL y copia su URL en la variable de entorno `DATABASE_URL` del servicio web.
+2. Define también `SECRET_KEY`, `FLASK_DEBUG=0` y `COOKIES_SEGURAS=1`.
+3. Comando de inicio: `gunicorn app:app`.
+4. Al arrancar, la app crea las tablas de colaboradores y áreas si no existen. Para crear la tabla `Administradores` y el primer administrador, ejecuta `crear_admin_render.py` (carpeta superior) con `DATABASE_URL` definida.
+5. Nota: en PostgreSQL las tablas se crean desde `database.py`; las restricciones completas (CHECK, UNIQUE) están en `sql/01_base_de_datos.sql` para SQL Server.
 
 ## Base de datos
 `Colaboradores` 1—N `ColaboradorAreas` N—1 `AreasColaboracion` (relación muchos a muchos, con PK, FK, UNIQUE y CHECK);
@@ -75,7 +84,7 @@ python tests/test_repositorios.py
 ```
 
 ## Antes de publicar
-`FLASK_DEBUG=0`, `COOKIES_SEGURAS=1` con HTTPS y `waitress-serve --listen=127.0.0.1:8000 app:app` detrás de IIS/Nginx.
+`FLASK_DEBUG=0`, `COOKIES_SEGURAS=1` con HTTPS y, en Windows, `waitress-serve --listen=127.0.0.1:8000 app:app` detrás de IIS/Nginx.
 
 ## Git
 `venv/`, `.env` y `__pycache__/` están en `.gitignore`. Haz commits pequeños y descriptivos, por ejemplo:

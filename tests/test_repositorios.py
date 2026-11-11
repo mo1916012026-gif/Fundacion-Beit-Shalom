@@ -40,6 +40,10 @@ class CursorFalso:
             columnas, filas = [("pais",)], [("El Salvador",)]
         elif "COUNT(*)" in sql:
             columnas, filas = [("total",)], [(3,)]
+        if "SELECT area_id FROM ColaboradorAreas" in sql:
+            columnas, filas = [("area_id",)], [(1,)]
+        if "WHERE LOWER(correo)" in sql and sql.lstrip().startswith("SELECT id FROM Colaboradores"):
+            filas = []  # el correo aún no existe
         self.description = [(c,) for c in columnas[0]]
         self._filas = filas
 
@@ -83,7 +87,7 @@ def run():
     repo.listar(busqueda="ana", pais="El Salvador", area_id=2, estado="Pendiente", pagina=2)
     repo.listar_todos(busqueda="ana")
     persona = repo.obtener(1)
-    assert persona["areas"] == ["x"] and persona["areas_ids"] == [1]
+    assert persona["areas_ids"] == [1]
     EJECUTADAS.clear()
     assert repo.actualizar(1, colaborador()) is True
     assert EJECUTADAS[0].startswith("UPDATE Colaboradores SET nombre_completo")

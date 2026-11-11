@@ -13,4 +13,4 @@ waitress==3.0.2
 Werkzeug==3.1.9
 WTForms==3.3.2
 psycopg2-binary
-Flask-SQLAlchemy
+pyodbc; sys_platform == "win32"

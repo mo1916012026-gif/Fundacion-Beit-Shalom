@@ -1,7 +1,7 @@
 """Repositorio para la gestión de colaboradores (funciona con SQL Server local y PostgreSQL en Render)."""
 import logging
 from database import IS_POSTGRES, transaccion
-from models.colaborador import Colaborador
+from repositories.base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,9 @@ def _primer_valor(fila, clave=None):
     return fila[0]
 
 
-class ColaboradorRepository:
+class ColaboradorRepository(BaseRepository):
+    """Hereda de BaseRepository; redefine _consultar y _ejecutar porque aquí se
+    escribe con %s y se devuelven filas con claves en minúscula."""
 
     def _consultar(self, sql, parametros=None):
         """Ejecuta SELECT y devuelve una lista de diccionarios."""

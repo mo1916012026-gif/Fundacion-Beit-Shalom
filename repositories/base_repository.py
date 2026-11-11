@@ -1,14 +1,4 @@
 """Clase base para todos los repositorios."""
-import sys
-from pathlib import Path
-
-# Permitir la importación de fakes desde la raíz del proyecto
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-try:
-    import fakes
-except ImportError:
-    fakes = None
-
 from database import IS_POSTGRES, transaccion, filas_a_diccionarios
 
 
